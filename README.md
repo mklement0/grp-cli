@@ -20,7 +20,7 @@
 
 # grp &mdash; Introduction
 
-`grp` is a Unix CLI that facilitates breaking text into ***g***rou***p***s of characters with a variety of options
+`grp` is a Unix CLI that facilitates breaking text into ***gr***ou***p***s of characters with a variety of options
 and also offers formatting numbers with digit grouping (thousands separators) based on the active locale.
 
 See the examples below and the [Usage](#usage) chapter for details.
@@ -28,7 +28,6 @@ See the examples below and the [Usage](#usage) chapter for details.
 # Examples
 
 ```shell
-
   # By default, break a string into space-separated groups of 3 chars.,
   # starting from the right (end).
 $ grp 1000000 2000
@@ -51,14 +50,17 @@ gh
 $ grp -c 1 -s . abcdef
 a.b.c.d.e.f
 
+   # Enclose each character in square brackets:
+$ grp -c 1 -f '[%s]' abc
+[a][b][c]
+
    # Format text as a US telephone number:
 $ echo '6085277865' | grp -f '+1 (%s) %s-%s' -c 3,3,4 
-+1 (608) 527-7865'
++1 (608) 527-7865
 
   # Break the input into repeating groups of 2 and 1 char. each:
 $ grp -l -c 2,1+ -s / abcdefgh
 ab/c/de/f/gh
-
 ```
 
 # Installation
@@ -207,6 +209,9 @@ This project gratefully depends on the following open-source components, accordi
 Versioning complies with [semantic versioning (semver)](http://semver.org/).
 
 <!-- NOTE: An entry template for a new version is automatically added each time `make version` is called. Fill in changes afterwards. -->
+
+* **[v0.1.1](https://github.com/mklement0/grp-cli/compare/v0.1.0...v0.1.1)** (2015-06-13):
+  * [doc] Read-me fixed and amended.
 
 * **v0.1.0** (2015-06-13):
   * Initial release.
