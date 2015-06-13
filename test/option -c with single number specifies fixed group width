@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+PATH=${PWD%%/test*}/bin:$PATH
+
+# Helper function for error reporting.
+die() { (( $# > 0 )) && echo "$*" >&2; exit 1; }
+
+res=$(grp -s @ -c 2 -l '123456')
+[[ $res == '12@34@56' ]] || die "-l: unexpected grouping with complete consumption"
+
+res=$(grp -s @ -c 2 -l '1234567')
+[[ $res == '12@34@56@7' ]] || die "-l: unexpected grouping with incomplete consumption"
+
+res=$(grp -s @ -c 2 '123456')
+[[ $res == '12@34@56' ]] || die "-r: unexpected grouping with complete consumption"
+
+res=$(grp -s @ -c 2 '1234567')
+[[ $res == '1@23@45@67' ]] || die "-r: unexpected grouping with incomplete consumption"
+
+
+exit 0
+

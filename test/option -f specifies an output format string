@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+PATH=${PWD%%/test*}/bin:$PATH
+
+# Helper function for error reporting.
+die() { (( $# > 0 )) && echo "$*" >&2; exit 1; }
+
+# Note: assumes defaults of -c 3 and -s ' ' and -t $'\n':
+
+res=$(grp -c 1 -f '[%s]' 'abc')
+[[ $res == '[a][b][c]' ]] || die "format string 1 did not take effect"
+
+
+res=$(grp -c 2,1 -f '[%s]' 'abc')
+[[ $res == '[ab][c]' ]] || die "format string 2 did not take effect"
+
+exit 0
+

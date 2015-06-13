@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+PATH=${PWD%%/test*}/bin:$PATH
+
+# Helper function for error reporting.
+die() { (( $# > 0 )) && echo "$*" >&2; exit 1; }
+
+# Note: assumes defaults of -c 3 and -s ' ':
+
+res1=$(grp -r 1234) || die
+res2=$(grp -r -s '@' 1234) || die
+
+[[ $res1 == '1 234' ]] || die "unexpected default separator"
+
+[[ $res2 == '1@234' ]] || die "custom separator did not take effect"
+
+exit 0
+

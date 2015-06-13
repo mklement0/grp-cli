@@ -1,0 +1,378 @@
+#!/usr/bin/env bash
+
+kTHIS_NAME=$(basename "$BASH_SOURCE")
+
+unset CDPATH  # to prevent unpredictable `cd` behavior
+
+# Output version number and exit, if requested. Note that the `ver='...'` statement is automatically updated by `make version VER=<newVer>` - DO keep the 'v' suffix in the variable _definition_.
+[[ $1 == '--version' ]] && { declare ver='v0.1.0'; echo "$kTHIS_NAME ${ver#v}"; exit 0; }
+
+# --- BEGIN: functions
+
+# Helper function for exiting with error message due to runtime error.
+#   die [errMsg [exitCode]]
+# Default error message states context and indicates that execution is aborted. Default exit code is 1.
+# Prefix for context is always prepended.
+# Note: An error message is *always* printed; if you just want to exit with a specific code silently, use `exit n` directly.
+die() {
+  echo "$kTHIS_NAME: ERROR: ${1:-"ABORTING due to unexpected error."}" 1>&2
+  exit ${2:-1} # Note: If the argument is non-numeric, the shell prints a warning and uses exit code 255.
+}
+
+# Helper function for exiting with error message due to invalid arguments.
+#   dieSyntax [errMsg]
+# Default error message is provided, as is prefix and suffix; exit code is always 2.
+dieSyntax() {
+  echo "$kTHIS_NAME: ARGUMENT ERROR: ${1:-"Invalid argument(s) specified."} Use -h for help." 1>&2
+  exit 2
+}
+
+# SYNOPSIS
+#   groupDigits [-t term] [num ...]
+# DESCRIPTION
+#   Formats the specified number(s) according to the rules of the
+#   current locale in terms of digit grouping (thousands separators).
+#   Note that input numbers
+#     - must not contain not be digit-grouped themselves,
+#     - must use the *current* locale's decimal mark.
+#   Numbers can be integers or floats.
+#   Processing stops at the first number that can't be formatted, and a
+#   non-zero exit code is returned.
+#   Input is either taken from operands or, in their absence, line by line 
+#   from stdin.
+#   By default, each number output is terminated with a newline; -t term
+#   allows you to specify an alternate terminator.
+# CAVEATS
+#   - No input validation is performed.
+#   - printf(1) is not guaranteed to support non-integer formats by POSIX,
+#     though not doing so is rare these days.
+#   - Round-trip number conversion is involved (string > double > string, 
+#     so rounding errors can occur.
+#     Due to use of double-precision floating-point values, the max. number of
+#     significant digits (irrespective of decimal point) that should be
+#     accurately preserved is 15; however, the number is higher in practice:
+#     GNU printf: 20, BSD/OSX printf: 17 (?? why?)
+# EXAMPLES
+#   groupDigits 1000 # -> '1,000'
+#   groupDigits 1000.5 # -> '1,000.5'
+#   (LC_ALL=lt_LT.UTF-8; groupDigits 1000,5) # -> '1 000,5'
+groupDigits() {
+  local num decimalMark fractPart outTerminator=$'\n'
+  local opt OPTARG= OPTIND=1 # Required, if `getopts` was previously called in the current shell.
+  while getopts 't:' opt; do  # $opt will receive the option *letters* one by one; a trailing : means that an arg. is required, reported in $OPTARG.
+    [[ $opt == '?' ]] || [[ $opt == ':' ]] && return 1
+    case "$opt" in
+      t)
+        outTerminator=$OPTARG
+        ;;
+    esac
+  done
+  shift $((OPTIND - 1)) # Skip the already-processed arguments (options).
+  decimalMark=$(printf "%.1f" 0); decimalMark=${decimalMark:1:1}
+  while read -r num; do
+    fractPart=${num##*${decimalMark}}; [[ "$num" == "$fractPart" ]] && fractPart=''
+    printf "%'.${#fractPart}f${outTerminator}" "$num" || return
+  done < <( (( $# )) && printf '%s\n' "$@" || cat ) # !! Sadly, with interactive stdin input, the first ^C only displays an error, and it takes a second one to actually terminate the command.
+}
+
+
+# SYNOPSIS
+#   grp [-l | -r] [-c count] [-n] [-s sep | -f fmt] [txt ...]
+# DESCRIPTION
+#   Breaks each input line / operand into groups of characters.
+#   -l or -r (default) ... determines if grouping starts from the left (start) of the string or its right (end).
+#   -c count (default: 3) ... how many chars. to put in each group
+#      count may alternatively be a comma-separated list of counts, e.g., '4,3' or '2,3+'
+#      -l / -r implies whether the counts are applied from left to right or right to left.
+#      With a trailing '+', the counts are applied cyclically, until the input runs out.
+#      With NO trailing '+', whatever remains of the input is put into a final group.
+#   -n ... suppresses adding a trailing newline to each output item
+#   -s sep (default: a space) ... the character or string for separating groups
+#   -f fmt ... as an alternative to -s, the printf format string to apply to the groups (cyclically)
+#       Typically, you'll use '%s' instances to refer to groups.
+#   Note: For locale- and decimal-character aware digit grouping (thousands separators), use either GNU utiliy numfmt with --grouping, or printf with, for instance, "%'d"
+# EXAMPLES
+#   grp 1000000 # -> '1 000 000'
+#   grp -f '%s (%s) %s-%s' -c 2,3,3,4 '+16085277865'  # -> +1 (608) 527-7865
+#   grp -c 1 -f '[%s]' abc  # -> '[a][b][c]'
+grp() {
+  local fromLeft=0 countsRaw=3 sep=' ' fmt outTerminator=$'\n'
+  local opt OPTARG= OPTIND=1 # Required, if `getopts` was previously called in the current shell.
+  while getopts 'lrnc:s:f:t:' opt; do  # $opt will receive the option *letters* one by one; a trailing : means that an arg. is required, reported in $OPTARG.
+    [[ $opt == '?' ]] || [[ $opt == ':' ]] && return 1
+    case "$opt" in
+      l)
+        fromLeft=1
+        ;;
+      r)
+        fromLeft=0
+        ;;
+      c)
+        countsRaw=$OPTARG
+        ;;
+      s)
+        sep=$OPTARG
+        ;;
+      f)
+        fmt=$OPTARG
+        ;;
+      t)
+        outTerminator=$OPTARG
+        ;;
+    esac
+  done
+  shift $((OPTIND - 1)) # Skip the already-processed arguments (options).
+
+  local counts haveCountList haveCyclicCountList result txt rest result grp grps extraIteration countSubscript i
+
+  [[ $countsRaw =~ ,..*\+$ ]] && { haveCyclicCountList=1; countsRaw=${countsRaw%?}; } || haveCyclicCountList=0
+  IFS=, read -ra counts <<<"$countsRaw"
+  (( ${#counts[@]} > 1 )) && haveCountList=1 || { haveCountList=0; count=${counts[0]}; }
+
+  # Loop over input items: either the operands specified or, in their absence, stdin:
+  while read -r txt; do
+
+    grps=()
+
+    result=
+    extraIteration=0
+    (( fromLeft )) && countSubscript=0 || countSubscript=$(( ${#counts[@]} - 1 ))
+    rest=$txt
+    while [[ -n $rest ]]; do  
+      if (( haveCountList )); then
+        (( fromLeft )) && count=${counts[countSubscript++]} || count=${counts[countSubscript--]}
+        if (( countSubscript == ${#counts[@]} || countSubscript == -1 )); then
+           if (( haveCyclicCountList )); then
+              (( fromLeft )) && countSubscript=0 || countSubscript=$(( ${#counts[@]} - 1 ))
+           else
+             extraIteration=1
+           fi
+        fi
+      fi
+      for (( i = 0; i < (extraIteration ? 2 : 1); i++ )); do
+        if (( fromLeft )); then   # from the LEFT
+          grps+=( "${rest:0:count}" )
+          rest=${rest:count}
+        else                      # from the RIGHT
+          grps=( "${rest: $(( ${#rest} < count ? 0 : -count ))}" "${grps[@]}" )
+          rest=${rest:0: $(( ${#rest} <= count ? 0 : ${#rest} - count ))}
+        fi
+        (( extraIteration )) && { count=${#rest}; (( count == 0 )) && extraIteration=0; }
+      done
+      (( extraIteration )) && break
+    done
+
+    if [[ -n $fmt ]]; then
+      printf -- "${fmt}" "${grps[@]}"
+      # Print the output terminator; note that we have to do this *separately*, because
+      # the printf format string is invariably applied cyclically, so it could be applied
+      # multiple times.
+      [[ -n $outTerminator ]] && printf "$outTerminator"
+    else      
+      result=
+      for grp in "${grps[@]}"; do
+        result+=${result:+$sep}${grp}
+      done
+
+      printf "%s${outTerminator}" "$result"
+    fi
+
+  done < <( (( $# )) && printf '%s\n' "$@" || cat ) # !! Sadly, with interactive stdin input, the first ^C only displays an error, and it takes a second one to actually terminate the command.
+
+}
+
+# --- END: functions
+
+
+# Command-line help.
+if [[ $1 == '--help' || $1 == '-h' ]]; then
+  cat <<EOF
+SYNOPSIS
+  $kTHIS_NAME [-l | -r] [-c count] [-s sep | -f fmt] [-t term] [txt ...]
+  $kTHIS_NAME -n [-t term] [num ...]
+
+DESCRIPTION
+  $kTHIS_NAME facilitates breaking input into *gr*ou*p*s:
+
+  First synopsis form:
+    Breaks text into groups of specifiable length joined with a 
+    specifiable separator or formatted with a printf-style format string.
+  
+  Second synopsis form:
+    Prints numbers with digit grouping (thousands separators), as defined by
+    the current locale.
+
+  Input is taken either from operands or, in their absence, line by line from
+  stdin. Each operand / input line is processed separately.
+
+OPTIONS
+
+  -l, -r (default: -r)
+    Determines if grouping should start from the left (-l) or right (-r) of
+    the input.
+
+  -c count
+  -c count1,count2,...
+  -c count1,count2,...[+]
+    The count of characters to put into each group.
+    - If only a single count is specified:
+      Breaks the input into fixed groups of the specified size until the input
+      runs out; starting either from the left (start) or right (end), as
+      controlled with -l or -r.
+    - With a list of counts:
+      The order in which the counts are applied is implied by -l or -r; for 
+      instance, since grouping starts from the right (end) by default, the
+      *last* count in the list is by default applied first to the end of the
+      input.
+      - If the list ends in '+':
+        The list of counts is applied *cyclically*; that is, once all counts
+        have been applied, the process starts over with the remaining input.
+      - Otherwise:
+        Whatever is left of the input is put into a final group.
+
+  -s sep (default: a space)
+    The separator character or string to place between resulting groups.
+
+  -f fmt
+    The printf-style format string to apply to the resulting groups, as an 
+    alternative to specifying a fixed separator.
+    Note that if there are more groups than arguments in the format string,
+    the format string is applied cyclically.
+
+  -t term (default: a newline)
+    The terminator char. or string to append to each group on output;
+    specify -t '' to directly concatenate multiple results, if applicable,
+    and to not terminate the overall input with a newline.
+
+  -n
+    Treats each input argument as a number to be format with digit grouping
+    (thousands separators), as defined by the current locale.
+    Input can be decimal integers or fractions, numbers in decimal
+    scientific notation, or hexadecimal integers.
+    Output is always decimal, with the number of input decimal places
+    preserved, and the locale's digit grouping and decimal mark applied, if
+    applicable,
+
+    Note:
+      - Environment variables LC_NUMERIC and, indirectly, LANG or LC_ALL
+        control the active locale with respect to number formatting. Not all
+        locales define digit grouping, notably not the "C" and "POSIX"
+        locales. However, even the definition of real-world locales such as
+        "de_DE.UTF-8" (Germany) is inconsistent across platforms, and uses
+        digit grouping on some (e.g., Linux), but not others (e.g., OSX).
+      - Since round-trip number conversion is involved, rounding errors can be
+        introduced. To be safe, limit numbers to 15 significant digits.
+
+EXAMPLES
+  $kTHIS_NAME 1000000 # -> '1 000 000'
+  $kTHIS_NAME -n 1000000.2 # -> '1,000,000.2' in locale 'en_US.UTF-8'
+    # Format a US telephone number:
+  $kTHIS_NAME -f '(%s) %s-%s' -c 3,3,4 '6085277865' # -> '(608) 527-7865'
+    # Enclose each group in delimiters:
+  $kTHIS_NAME -c 1 -f '[%s]' abc  # -> '[a][b][c]'
+
+EOF
+    exit 0
+fi
+
+# *Undefine* all variables set by options below, so we can later tell 
+# which ones are explicitly set with options.
+unset fromLeft counts groupSep formatString outTerminator formatAsNumber
+
+# ----- BEGIN: OPTIONS PARSING: This is MOSTLY generic code, but:
+#  - SET allowOptsAfterOperands AFTER THIS COMMENT TO 1 to ALLOW OPTIONS TO BE MIXED WITH OPERANDS rather than requiring all options to come before the 1st operand, as POSIX mandates.
+#  - The SPECIFIC OPTIONS MUST BE HANDLED IN A CASE ... ESAC STATEMENT BELOW; look for "BEGIN: CUSTOMIZE HERE ... END: CUSTOMIZE HERE"
+#  - Assumes presence of function dieSyntax(); if not present, define as: dieSyntax() { echo "$(basename -- "$BASH_SOURCE"): ARGUMENT ERROR: ${1:-"Invalid argument(s) specified."} Use -h for help." >&2; exit 2; }
+#  - After the end of options parsing, $@ only contains the operands (non-option arguments), if any.
+allowOptsAfterOperands=1 operands=() i=0 optName= isLong=0 prefix= optArg= haveOptArgAttached=0 haveOptArgAsNextArg=0 acceptOptArg=0 needOptArg=0 optsSpecified=0
+while (( $# )); do
+  if [[ $1 =~ ^(-)[a-zA-Z0-9]+.*$ || $1 =~ ^(--)[a-zA-Z0-9]+.*$ ]]; then # an option: either a short option / multiple short options in compressed form or a long option
+    prefix=${BASH_REMATCH[1]}; [[ $prefix == '--' ]] && isLong=1 || isLong=0
+    for (( i = 1; i < (isLong ? 2 : ${#1}); i++ )); do
+        acceptOptArg=0 needOptArg=0 haveOptArgAttached=0 haveOptArgAsNextArg=0 optArgAttached= optArgOpt= optArgReq=
+        if (( isLong )); then # long option: parse into name and, if present, argument
+          optName=${1:2}
+          [[ $optName =~ ^([^=]+)=(.*)$ ]] && { optName=${BASH_REMATCH[1]}; optArgAttached=${BASH_REMATCH[2]}; haveOptArgAttached=1; }
+        else # short option: *if* it takes an argument, the rest of the string, if any, is by definition the argument.
+          optName=${1:i:1}; optArgAttached=${1:i+1}; (( ${#optArgAttached} >= 1 )) && haveOptArgAttached=1
+        fi
+        (( haveOptArgAttached )) && optArgOpt=$optArgAttached optArgReq=$optArgAttached || { (( $# > 1 )) && { optArgReq=$2; haveOptArgAsNextArg=1; }; }
+        optsSpecified=1
+        # ---- BEGIN: CUSTOMIZE HERE
+        case $optName in
+          l|left)
+            fromLeft=1
+            ;;
+          r|right)
+            fromLeft=0
+            ;;
+          s|separator|separator=*)  # input-field separator
+            needOptArg=1
+            groupSep=$optArgReq
+            ;;
+          c|count|count=*)  # input-field separator
+            needOptArg=1
+            counts=$optArgReq
+            ;;
+          t|out-terminator=*)  # input-field separator
+            needOptArg=1
+            outTerminator=$optArgReq
+            ;;
+          f|format-string=*)  # input-field separator
+            needOptArg=1
+            formatString=$optArgReq
+            ;;
+          n|number) # keep input quoting
+            formatAsNumber=1
+            ;;
+          *)
+            dieSyntax "Unknown option: ${prefix}${optName}."
+            ;;
+        esac
+        # ---- END: CUSTOMIZE HERE
+        (( needOptArg )) && { (( ! haveOptArgAttached && ! haveOptArgAsNextArg )) && dieSyntax "Option ${prefix}${optName} is missing its argument." || (( haveOptArgAsNextArg )) && shift; }
+        (( acceptOptArg || needOptArg )) && break
+    done
+  else # an operand
+    if [[ $1 == '--' ]]; then
+      shift; operands+=( "$@" ); break
+    elif (( allowOptsAfterOperands )); then
+      operands+=( "$1" ) # continue 
+    else
+      operands=( "$@" )
+      break
+    fi
+  fi
+  shift
+done
+(( "${#operands[@]}" > 0 )) && set -- "${operands[@]}"; unset allowOptsAfterOperands operands i optName isLong prefix optArgAttached haveOptArgAttached haveOptArgAsNextArg acceptOptArg needOptArg
+# ----- END: OPTIONS PARSING: "$@" now contains all operands (non-option arguments).
+
+# Check for incompatible options
+if (( formatAsNumber )); then
+  [[ -z ${fromLeft}${right}${groupSep}${formatString} ]] || dieSyntax "Incompatible options specified."
+else
+  [[ -n $groupSep && -n $formatString ]] && dieSyntax "Incompatible options specified."
+fi
+
+# Determine global defaults
+: ${fromLeft=0}
+: ${groupSep=' '}
+: ${outTerminator=$'\n'}
+: ${counts=3}
+
+# pv fromLeft counts groupSep formatString outTerminator formatAsNumber
+
+if (( formatAsNumber )); then
+  groupDigits "$@" || die
+else
+  args=()
+  (( fromLeft )) && args+=( -l ) || args+=( -r )
+  [[ -n $formatString ]] && args+=( -f "$formatString" ) || args+=( -s "$groupSep" )
+  args+=( -c "$counts" )
+  args+=( -t "$outTerminator" )
+  # pv args # ??
+  grp "${args[@]}" -- "$@" || die
+fi
+
+exit 0

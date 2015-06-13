@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+PATH=${PWD%%/test*}/bin:$PATH
+
+# Helper function for error reporting.
+die() { (( $# > 0 )) && echo "$*" >&2; exit 1; }
+
+grp -n 1000 || die
+
+grp -n -t @ 1000 || die
+
+grp -l -n 1000 && die
+
+grp -s ' ' -n 1000 && die
+
+grp -f '[%s]' -n 1000 && die
+
+exit 0

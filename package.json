@@ -1,0 +1,49 @@
+{
+  "name": "grp-cli",
+  "description": "a Unix CLI that facilitates breaking text into groups of characters",
+  "private": false,
+  "version": "0.1.0",
+  "os": [
+    "linux",
+    "darwin"
+  ],
+  "preferGlobal": true,
+  "bin": {
+    "grp": "bin/grp"
+  },
+  "homepage": "https://github.com/mklement0/grp-cli",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mklement0/grp-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mklement0/grp-cli/issues"
+  },
+  "scripts": {
+    "test": "make test"
+  },
+  "keywords": [
+    "grouping",
+    "format",
+    "reformat",
+    "text",
+    "numbers",
+    "cli"
+  ],
+  "author": "Michael Klement <mklement0@gmail.com> (http://same2u.net)",
+  "license": "MIT",
+  "net_same2u": {
+    "make_pkg": {
+      "tocOn": true,
+      "tocTitle": "**Contents**"
+    }
+  },
+  "devDependencies": {
+    "doctoc": "^0.13.0",
+    "json": "^9.0.3",
+    "replace": "^0.3.0",
+    "semver": "^4.2.0",
+    "tap": "^0.6.0",
+    "urchin": "^0.0.5"
+  }
+}

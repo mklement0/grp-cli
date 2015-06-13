@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+
+PATH=${PWD%%/test*}/bin:$PATH
+
+# Helper function for error reporting.
+die() { (( $# > 0 )) && echo "$*" >&2; exit 1; }
+
+# Note: assumes defaults of -c 3 and -s ' ' and -t $'\n':
+
+IFS= read -d '' -r res1 < <(grp -r 1234)
+
+IFS= read -d '' -r res2 < <(grp -r -t @ 1234)
+
+[[ $res1 =~ .+$'\n'$ ]] || die "unexpected default output terminator"
+
+[[ $res2 =~ .+@$ ]] || die "custom output terminator did not take effect"
+
+exit 0
+

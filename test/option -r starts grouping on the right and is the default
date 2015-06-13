@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+PATH=${PWD%%/test*}/bin:$PATH
+
+# Helper function for error reporting.
+die() { (( $# > 0 )) && echo "$*" >&2; exit 1; }
+
+# Note: assumes defaults of -c 3 and -s ' ':
+
+res1=$(grp -r 1234) || die
+res2=$(grp  1234) || die
+
+[[ "$res1" == "$res1" ]] || die "not equal"
+
+[[ $(cut -d' ' -f2- <<<"$res1") == '234' ]] || die "unexpected result"
+
+exit 0
+
