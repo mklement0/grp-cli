@@ -91,7 +91,7 @@ With [Node.js](http://nodejs.org/) or [io.js](https://iojs.org/) installed, inst
 
 <!-- DO NOT EDIT THE FENCED CODE BLOCK and RETAIN THIS COMMENT: The fenced code block below is updated by `make update-readme/release` with CLI usage information. -->
 
-```
+```nohighlight
 $ grp --help
 
 SYNOPSIS
@@ -152,7 +152,7 @@ OPTIONS
     and to not terminate the overall input with a newline.
 
   -n
-    Treats each input argument as a number to be format with digit grouping
+    Treats each input argument as a number to format with digit grouping
     (thousands separators), as defined by the current locale.
     Input can be decimal integers or fractions, numbers in decimal
     scientific notation, or hexadecimal integers.
@@ -209,6 +209,9 @@ This project gratefully depends on the following open-source components, accordi
 Versioning complies with [semantic versioning (semver)](http://semver.org/).
 
 <!-- NOTE: An entry template for a new version is automatically added each time `make version` is called. Fill in changes afterwards. -->
+
+* **[v0.1.2](https://github.com/mklement0/grp-cli/compare/v0.1.1...v0.1.2)** (2015-09-15):
+  * [dev] Makefile improvements; various other behind-the-scenes tweaks.
 
 * **[v0.1.1](https://github.com/mklement0/grp-cli/compare/v0.1.0...v0.1.1)** (2015-06-13):
   * [doc] Read-me fixed and amended.

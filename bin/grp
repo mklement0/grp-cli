@@ -5,7 +5,7 @@ kTHIS_NAME=$(basename "$BASH_SOURCE")
 unset CDPATH  # to prevent unpredictable `cd` behavior
 
 # Output version number and exit, if requested. Note that the `ver='...'` statement is automatically updated by `make version VER=<newVer>` - DO keep the 'v' suffix in the variable _definition_.
-[[ $1 == '--version' ]] && { declare ver='v0.1.1'; echo "$kTHIS_NAME ${ver#v}"; exit 0; }
+[[ $1 == '--version' ]] && { declare ver='v0.1.2'; echo "$kTHIS_NAME ${ver}"$'\nFor license information and more, visit https://github.com/mklement0/grp-cli'; exit 0; }
 
 # --- BEGIN: functions
 
@@ -245,7 +245,7 @@ OPTIONS
     and to not terminate the overall input with a newline.
 
   -n
-    Treats each input argument as a number to be format with digit grouping
+    Treats each input argument as a number to format with digit grouping
     (thousands separators), as defined by the current locale.
     Input can be decimal integers or fractions, numbers in decimal
     scientific notation, or hexadecimal integers.

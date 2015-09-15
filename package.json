@@ -1,8 +1,8 @@
 {
   "name": "grp-cli",
-  "description": "a Unix CLI that facilitates breaking text into groups of characters",
+  "description": "Unix CLI that facilitates breaking text into groups of characters.",
   "private": false,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "os": [
     "linux",
     "darwin"
