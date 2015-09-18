@@ -1,31 +1,103 @@
 #!/usr/bin/env bash
 
-kTHIS_NAME=$(basename "$BASH_SOURCE")
+# --- STANDARD SCRIPT-GLOBAL CONSTANTS
 
-unset CDPATH  # to prevent unpredictable `cd` behavior
+kTHIS_NAME=${BASH_SOURCE##*/}
+kTHIS_HOMEPAGE='https://github.com/mklement0/grp-cli'
+kTHIS_VERSION='v0.1.3' # NOTE: This assignment is automatically updated by `make version VER=<newVer>` - DO keep the 'v' prefix.
 
-# Output version number and exit, if requested. Note that the `ver='...'` statement is automatically updated by `make version VER=<newVer>` - DO keep the 'v' suffix in the variable _definition_.
-[[ $1 == '--version' ]] && { declare ver='v0.1.2'; echo "$kTHIS_NAME ${ver}"$'\nFor license information and more, visit https://github.com/mklement0/grp-cli'; exit 0; }
+unset CDPATH  # To prevent unexpected `cd` behavior.
+
+# --- Begin: STANDARD HELPER FUNCTIONS
+
+die() { echo "$kTHIS_NAME: ERROR: ${1:-"ABORTING due to unexpected error."}" 1>&2; exit ${2:-1}; }
+dieSyntax() { echo "$kTHIS_NAME: ARGUMENT ERROR: ${1:-"Invalid argument(s) specified."} Use -h for help." 1>&2; exit 2; }
+
+# SYNOPSIS
+#   openUrl <url>
+# DESCRIPTION
+#   Opens the specified URL in the system's default browser.
+openUrl() {
+  local url=$1 platform=$(uname) cmd=()
+  case $platform in
+    'Darwin') # OSX
+      cmd=( open "$url" )
+      ;;
+    'CYGWIN_'*) # Cygwin on Windows; must call cmd.exe with its `start` builtin
+      cmd=( cmd.exe /c start '' "$url " )  # !! Note the required trailing space.
+      ;;
+    'MINGW32_'*) # MSYS or Git Bash on Windows; they come with a Unix `start` binary
+      cmd=( start '' "$url" )
+      ;;
+    *) # Otherwise, assume a Freedesktop-compliant OS, which includes many Linux distros, PC-BSD, OpenSolaris, ...
+      cmd=( xdg-open "$url" )
+      ;; 
+  esac
+  "${cmd[@]}" || { echo "Cannot locate or failed to open default browser; please go to '$url' manually." >&2; return 1; }
+}
+
+# Prints the embedded Markdown-formatted man-page source to stdout.
+printManPageSource() {
+  sed -n -e $'/^: <<\'EOF_MAN_PAGE\'/,/^EOF_MAN_PAGE/ { s///; t\np;}' "$BASH_SOURCE"
+}
+
+# Opens the man page, if installed; otherwise, tries to display the embedded Markdown-formatted man-page source; if all else fails: tries to display the man page online.
+openManPage() {
+  local pager embeddedText 
+  if ! man 1 "$kTHIS_NAME" 2>/dev/null; then
+    # 2nd attempt: if present, display the embedded Markdown-formatted man-page source
+    embeddedText=$(printManPageSource)
+    if [[ -n $embeddedText ]]; then
+      pager='more'
+      command -v less &>/dev/null && pager='less' # see if the non-standard `less` is available, because it's preferable to the POSIX utility `more`
+      printf '%s\n' "$embeddedText" | "$pager"
+    else # 3rd attempt: open the the man page on the utility's website
+      openUrl "${kTHIS_HOMEPAGE}/doc/${kTHIS_NAME}.md"
+    fi
+  fi  
+}
+
+# Prints the contents of the synopsis chapter of the embedded Markdown-formatted man-page source for quick reference.
+printUsage() {
+  local embeddedText
+  # Extract usage information from the SYNOPSIS chapter of the embedded Markdown-formatted man-page source.
+  embeddedText=$(sed -n -e $'/^: <<\'EOF_MAN_PAGE\'/,/^EOF_MAN_PAGE/!d; /^## SYNOPSIS$/,/^#/{ s///; t\np; }' "$BASH_SOURCE")
+  if [[ -n $embeddedText ]]; then
+    # Print extracted synopsis chapter - remove backticks for uncluttered display.
+    printf '%s\n\n' "$embeddedText" | tr -d '`'
+  else # No SYNOPIS chapter found; fall back to displaying the man page.
+    echo "WARNING: usage information not found; opening man page instead." >&2
+    openManPage
+  fi
+}
+
+# --- End: STANDARD HELPER FUNCTIONS
+
+# ---  PROCESS STANDARD, OUTPUT-INFO-THEN-EXIT OPTIONS.
+case $1 in
+  --version)
+    # Output version number and exit, if requested.
+    echo "$kTHIS_NAME $kTHIS_VERSION"$'\nFor license information and more, visit '"$kTHIS_HOMEPAGE"; exit 0
+    ;;
+  -h|--help)
+    # Print usage information and exit.
+    printUsage; exit
+    ;;
+  --man)
+    # Display the manual page and exit, falling back to printing the embedded man-page source.
+    openManPage; exit
+    ;;
+  --man-source) # private option, used by `make update-man`
+    # Print raw, embedded Markdown-formatted man-page source and exit
+    printManPageSource; exit
+    ;;
+  --home)
+    # Open the home page and exit.
+    openUrl "$kTHIS_HOMEPAGE"; exit
+    ;;
+esac
 
 # --- BEGIN: functions
-
-# Helper function for exiting with error message due to runtime error.
-#   die [errMsg [exitCode]]
-# Default error message states context and indicates that execution is aborted. Default exit code is 1.
-# Prefix for context is always prepended.
-# Note: An error message is *always* printed; if you just want to exit with a specific code silently, use `exit n` directly.
-die() {
-  echo "$kTHIS_NAME: ERROR: ${1:-"ABORTING due to unexpected error."}" 1>&2
-  exit ${2:-1} # Note: If the argument is non-numeric, the shell prints a warning and uses exit code 255.
-}
-
-# Helper function for exiting with error message due to invalid arguments.
-#   dieSyntax [errMsg]
-# Default error message is provided, as is prefix and suffix; exit code is always 2.
-dieSyntax() {
-  echo "$kTHIS_NAME: ARGUMENT ERROR: ${1:-"Invalid argument(s) specified."} Use -h for help." 1>&2
-  exit 2
-}
 
 # SYNOPSIS
 #   groupDigits [-t term] [num ...]
@@ -183,97 +255,8 @@ grp() {
 
 # --- END: functions
 
+# --- MAIN BODY
 
-# Command-line help.
-if [[ $1 == '--help' || $1 == '-h' ]]; then
-  cat <<EOF
-SYNOPSIS
-  $kTHIS_NAME [-l | -r] [-c count] [-s sep | -f fmt] [-t term] [txt ...]
-  $kTHIS_NAME -n [-t term] [num ...]
-
-DESCRIPTION
-  $kTHIS_NAME facilitates breaking input into *gr*ou*p*s:
-
-  First synopsis form:
-    Breaks text into groups of specifiable length joined with a 
-    specifiable separator or formatted with a printf-style format string.
-  
-  Second synopsis form:
-    Prints numbers with digit grouping (thousands separators), as defined by
-    the current locale.
-
-  Input is taken either from operands or, in their absence, line by line from
-  stdin. Each operand / input line is processed separately.
-
-OPTIONS
-
-  -l, -r (default: -r)
-    Determines if grouping should start from the left (-l) or right (-r) of
-    the input.
-
-  -c count
-  -c count1,count2,...
-  -c count1,count2,...[+]
-    The count of characters to put into each group.
-    - If only a single count is specified:
-      Breaks the input into fixed groups of the specified size until the input
-      runs out; starting either from the left (start) or right (end), as
-      controlled with -l or -r.
-    - With a list of counts:
-      The order in which the counts are applied is implied by -l or -r; for 
-      instance, since grouping starts from the right (end) by default, the
-      *last* count in the list is by default applied first to the end of the
-      input.
-      - If the list ends in '+':
-        The list of counts is applied *cyclically*; that is, once all counts
-        have been applied, the process starts over with the remaining input.
-      - Otherwise:
-        Whatever is left of the input is put into a final group.
-
-  -s sep (default: a space)
-    The separator character or string to place between resulting groups.
-
-  -f fmt
-    The printf-style format string to apply to the resulting groups, as an 
-    alternative to specifying a fixed separator.
-    Note that if there are more groups than arguments in the format string,
-    the format string is applied cyclically.
-
-  -t term (default: a newline)
-    The terminator char. or string to append to each group on output;
-    specify -t '' to directly concatenate multiple results, if applicable,
-    and to not terminate the overall input with a newline.
-
-  -n
-    Treats each input argument as a number to format with digit grouping
-    (thousands separators), as defined by the current locale.
-    Input can be decimal integers or fractions, numbers in decimal
-    scientific notation, or hexadecimal integers.
-    Output is always decimal, with the number of input decimal places
-    preserved, and the locale's digit grouping and decimal mark applied, if
-    applicable,
-
-    Note:
-      - Environment variables LC_NUMERIC and, indirectly, LANG or LC_ALL
-        control the active locale with respect to number formatting. Not all
-        locales define digit grouping, notably not the "C" and "POSIX"
-        locales. However, even the definition of real-world locales such as
-        "de_DE.UTF-8" (Germany) is inconsistent across platforms, and uses
-        digit grouping on some (e.g., Linux), but not others (e.g., OSX).
-      - Since round-trip number conversion is involved, rounding errors can be
-        introduced. To be safe, limit numbers to 15 significant digits.
-
-EXAMPLES
-  $kTHIS_NAME 1000000 # -> '1 000 000'
-  $kTHIS_NAME -n 1000000.2 # -> '1,000,000.2' in locale 'en_US.UTF-8'
-    # Format a US telephone number:
-  $kTHIS_NAME -f '(%s) %s-%s' -c 3,3,4 '6085277865' # -> '(608) 527-7865'
-    # Enclose each group in delimiters:
-  $kTHIS_NAME -c 1 -f '[%s]' abc  # -> '[a][b][c]'
-
-EOF
-    exit 0
-fi
 
 # *Undefine* all variables set by options below, so we can later tell 
 # which ones are explicitly set with options.
@@ -376,3 +359,168 @@ else
 fi
 
 exit 0
+
+####
+# MAN PAGE MARKDOWN SOURCE
+#  - Place a Markdown-formatted version of the man page for this script
+#    inside the here-document below.
+#    The document must be formatted to look good in all 3 viewing scenarios:
+#     - as a man page, after conversion to ROFF with marked-man
+#     - as plain text (raw Markdown source)
+#     - as HTML (rendered Markdown)
+#  Markdown formatting tips:
+#   - GENERAL
+#     To support plain-text rendering in the terminal, limit all lines to 80 chars.,
+#     and, for similar rendering as HTML, *end every line with 2 trailing spaces*.
+#   - HEADINGS
+#     - For better plain-text rendering, leave an empty line after a heading
+#       marked-man will remove it from the ROFF version.
+#     - The first heading must be a level-1 heading containing the utility
+#       name and very brief description; append the manual-section number 
+#       directly to the CLI name; e.g.:
+#         # foo(1) - does bar
+#     - The 2nd, level-2 heading must be '## SYNOPSIS' and the chapter's body
+#       must render reasonably as plain text, because it is printed to stdout
+#       when  `-h`, `--help` is specified:
+#         Use 4-space indentation without markup for both the syntax line and the
+#         block of brief option descriptions; represent option-arguments and operands
+#         in angle brackets; e.g., '<foo>'
+#     - All other headings should be level-2 headings in ALL-CAPS.
+#   - TEXT
+#      - Use NO indentation for regular chapter text; if you do, it will 
+#        be indented further than list items.
+#      - Use 4-space indentation, as usual, for code blocks.
+#      - Markup character-styling markup translates to ROFF rendering as follows:
+#         `...` and **...** render as bolded (red) text
+#         _..._ and *...* render as word-individually underlined text
+#   - LISTS
+#      - Indent list items by 2 spaces for better plain-text viewing, but note
+#        that the ROFF generated by marked-man still renders them unindented.
+#      - End every list item (bullet point) itself with 2 trailing spaces too so
+#        that it renders on its own line.
+#      - Avoid associating more than 1 paragraph with a list item, if possible,
+#        because it requires the following trick, which hampers plain-text readability:
+#        Use '&nbsp;<space><space>' in lieu of an empty line.
+####
+: <<'EOF_MAN_PAGE'
+# grp(1) - break input into groups
+
+## SYNOPSIS
+
+Format numbers with digit grouping:
+
+    grp -n [-t <term>] [<num>...]
+
+Break text into groups of characters:
+
+    grp [-l | -r] [-c <count>] [-s <sep> | -f <fmt>] [-t <term>] [<txt>...]
+
+Options:
+
+    -n          apply locale-aware digit grouping to input numbers
+    -t <term>   terminator to append to each argument's result; default: \n
+    -l, -r      start grouping from left / right (default)
+    -c <count>  count of chars. per group - may be comma-separated list
+    -s <sep>    either: separator to place between groups; default: a space
+    -f <fmt>    or: printf-style format string to apply to groups
+
+## DESCRIPTION
+
+`grp` facilitates breaking input into *gr*ou*p*s:
+
+First synopsis form:  
+Prints numbers with digit grouping (thousands separators), as defined by  
+the current locale.
+
+Second synopsis form:  
+Breaks text into groups of specifiable length joined with a specifiable  
+separator or formatted with a printf-style format string.
+  
+Input is taken either from operands or, in their absence, line by line from  
+stdin. Each operand / input line is processed separately.
+
+## OPTIONS
+
+  * `-n`  
+    Treats each input argument as a number to format with digit grouping  
+    (thousands separators), as defined by the current locale.  
+    Input can be decimal integers or fractions, numbers in decimal  
+    scientific notation, or hexadecimal integers.  
+    Output is always decimal, with the number of input decimal places  
+    preserved, and the locale's digit grouping and decimal mark applied, if  
+    applicable.  
+    See caveats in the following chapter.
+
+  * `-t <term>` (default: a newline)  
+    The terminator char. or string to append to each group on output;  
+    specify `-t ''` to directly concatenate multiple results, if applicable,  
+    and to not terminate the overall input with a newline.
+
+The following options only apply to text processing, i.e., if  `-n` is not  
+specified:
+
+  * `-l`, `-r` (default: `-r`)  
+    Determines if grouping should start from the left (`-l`) or right (`-r`)  
+    of each operand.
+
+  * `-c <count>`  
+  `-c <count1>,<count2>,...[+]`  
+    The count of characters to put into each group:
+    - If only a *single* count is specified:  
+      Breaks the input into fixed groups of the specified size until the input  
+      runs out; starting either from the left (start) or right (end), as  
+      controlled with `-l` or `-r`.  
+    - With a *list* of counts:  
+      The order in which the counts are applied is implied by `-l` or `-r`; for  
+      instance, since grouping starts from the right (end) by default, the  
+      last count in the list is by default applied first to the end of the  
+      input.  
+      - If the list ends in '+':  
+        The list of counts is applied *cyclically*; that is, once all counts  
+        have been applied, the process starts over with the remaining input.  
+      - Otherwise:  
+        Whatever is left of the input is put into a final group.
+
+  * `-s <sep>` (default: a space)  
+    The separator character or string to place between resulting groups.  
+
+  * `-f <fmt>`
+    The printf-style format string to apply to the resulting groups, as an  
+    alternative to specifying a fixed separator with `-s`.  
+    Note that it is the `-c` option that determines the partitioning of the  
+    input into individual arguments, to which the format string is then applied.  
+    If there are more groups than arguments in the format string, the format  
+    string is applied cyclically.
+
+## NUMBER-FORMATTING CAVEATS
+
+- Environment variables `LC_NUMERIC` and, indirectly, `LANG` or `LC_ALL`  
+  control the active locale with respect to number formatting. Not all  
+  locales define digit grouping, notably not the `C` and `POSIX`  
+  locales. However, even the definition of real-world locales such as  
+  `de_DE.UTF-8` (Germany) is inconsistent across platforms, and uses  
+  digit grouping on some (e.g., Linux), but not others (e.g., OSX).  
+
+- Since round-trip number conversion is involved, rounding errors can be  
+  introduced. To be safe, limit numbers to 15 significant digits.  
+
+## LICENSE
+
+For license information, bug reports, and more, visit this utility's home page  
+by running `grp --home`.
+
+## EXAMPLES
+      # Default operation: break into groups of 3 from the right, with groups  
+      # separated by a single space:
+    grp 1000000 # -> '1 000 000'
+
+      # Apply locale-aware number-formatting with digit grouping:
+    grp -n 1000000.2 # -> '1,000,000.2' in locale 'en_US.UTF-8'
+
+      # Format a US telephone number:
+    grp -f '(%s) %s-%s' -c 3,3,4 '6085277865' # -> '(608) 527-7865'
+    
+      # Enclose each resulting group in delimiters:
+    grp -c 1 -f '[%s]' abc  # -> '[a][b][c]'
+
+EOF_MAN_PAGE

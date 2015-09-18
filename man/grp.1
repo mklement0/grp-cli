@@ -1,0 +1,196 @@
+.TH "GRP" "1" "September 2015" "v0.1.3" ""
+.SH "NAME"
+\fBgrp\fR \- break input into groups
+.SH SYNOPSIS
+.P
+Format numbers with digit grouping:
+.P
+.RS 2
+.nf
+grp \-n [\-t <term>] [<num>\.\.\.]
+.fi
+.RE
+.P
+Break text into groups of characters:
+.P
+.RS 2
+.nf
+grp [\-l | \-r] [\-c <count>] [\-s <sep> | \-f <fmt>] [\-t <term>] [<txt>\.\.\.]
+.fi
+.RE
+.P
+Options:
+.P
+.RS 2
+.nf
+\-n          apply locale\-aware digit grouping to input numbers
+\-t <term>   terminator to append to each argument's result; default: \\n
+\-l, \-r      start grouping from left / right (default)
+\-c <count>  count of chars\. per group \- may be comma\-separated list
+\-s <sep>    either: separator to place between groups; default: a space
+\-f <fmt>    or: printf\-style format string to apply to groups
+.fi
+.RE
+.SH DESCRIPTION
+.P
+\fBgrp\fP facilitates breaking input into \fIgr\fRou\fIp\fRs:
+.P
+First synopsis form:
+.br
+Prints numbers with digit grouping (thousands separators), as defined by
+.br
+the current locale\.
+.P
+Second synopsis form:
+.br
+Breaks text into groups of specifiable length joined with a specifiable
+.br
+separator or formatted with a printf\-style format string\.
+.P
+Input is taken either from operands or, in their absence, line by line from
+.br
+stdin\. Each operand / input line is processed separately\.
+.SH OPTIONS
+.RS 0
+.IP \(bu 2
+\fB\-n\fP
+.br
+Treats each input argument as a number to format with digit grouping
+.br
+(thousands separators), as defined by the current locale\.
+.br
+Input can be decimal integers or fractions, numbers in decimal
+.br
+scientific notation, or hexadecimal integers\.
+.br
+Output is always decimal, with the number of input decimal places
+.br
+preserved, and the locale's digit grouping and decimal mark applied, if
+.br
+applicable\.
+.br
+See caveats in the following chapter\.
+.IP \(bu 2
+\fB\-t <term>\fP (default: a newline)
+.br
+The terminator char\. or string to append to each group on output;
+.br
+specify \fB\-t ''\fP to directly concatenate multiple results, if applicable,
+.br
+and to not terminate the overall input with a newline\.
+
+.RE
+.P
+The following options only apply to text processing, i\.e\., if  \fB\-n\fP is not
+.br
+specified:
+.RS 0
+.IP \(bu 2
+\fB\-l\fP, \fB\-r\fP (default: \fB\-r\fP)
+.br
+Determines if grouping should start from the left (\fB\-l\fP) or right (\fB\-r\fP)
+.br
+of each operand\.
+.IP \(bu 2
+\fB\-c <count>\fP
+.br
+\fB\-c <count1>,<count2>,\.\.\.[+]\fP
+.br
+The count of characters to put into each group:
+.RS 0
+.IP \(bu 2
+If only a \fIsingle\fR count is specified:
+.br
+Breaks the input into fixed groups of the specified size until the input
+.br
+runs out; starting either from the left (start) or right (end), as
+.br
+controlled with \fB\-l\fP or \fB\-r\fP\|\.  
+.IP \(bu 2
+With a \fIlist\fR of counts:
+.br
+The order in which the counts are applied is implied by \fB\-l\fP or \fB\-r\fP; for
+.br
+instance, since grouping starts from the right (end) by default, the
+.br
+last count in the list is by default applied first to the end of the
+.br
+input\.  
+.RS 0
+.IP \(bu 2
+If the list ends in '+':
+.br
+The list of counts is applied \fIcyclically\fR; that is, once all counts
+.br
+have been applied, the process starts over with the remaining input\.  
+.IP \(bu 2
+Otherwise:
+.br
+Whatever is left of the input is put into a final group\.
+
+.RE
+
+.RE
+.IP \(bu 2
+\fB\-s <sep>\fP (default: a space)
+.br
+The separator character or string to place between resulting groups\.  
+.IP \(bu 2
+\fB\-f <fmt>\fP
+The printf\-style format string to apply to the resulting groups, as an
+.br
+alternative to specifying a fixed separator with \fB\-s\fP\|\.
+.br
+Note that it is the \fB\-c\fP option that determines the partitioning of the
+.br
+input into individual arguments, to which the format string is then applied\.
+.br
+If there are more groups than arguments in the format string, the format
+.br
+string is applied cyclically\.
+
+.RE
+.SH NUMBER\-FORMATTING CAVEATS
+.RS 0
+.IP \(bu 2
+Environment variables \fBLC_NUMERIC\fP and, indirectly, \fBLANG\fP or \fBLC_ALL\fP
+.br
+control the active locale with respect to number formatting\. Not all
+.br
+locales define digit grouping, notably not the \fBC\fP and \fBPOSIX\fP
+.br
+locales\. However, even the definition of real\-world locales such as
+.br
+\fBde_DE\.UTF\-8\fP (Germany) is inconsistent across platforms, and uses
+.br
+digit grouping on some (e\.g\., Linux), but not others (e\.g\., OSX)\.  
+.IP \(bu 2
+Since round\-trip number conversion is involved, rounding errors can be
+.br
+introduced\. To be safe, limit numbers to 15 significant digits\.  
+
+.RE
+.SH LICENSE
+.P
+For license information, bug reports, and more, visit this utility's home page
+.br
+by running \fBgrp \-\-home\fP\|\.
+.SH EXAMPLES
+.P
+.RS 2
+.nf
+  # Default operation: break into groups of 3 from the right, with groups  
+  # separated by a single space:
+grp 1000000 # \-> '1 000 000'
+
+  # Apply locale\-aware number\-formatting with digit grouping:
+grp \-n 1000000\.2 # \-> '1,000,000\.2' in locale 'en_US\.UTF\-8'
+
+  # Format a US telephone number:
+grp \-f '(%s) %s\-%s' \-c 3,3,4 '6085277865' # \-> '(608) 527\-7865'
+
+  # Enclose each resulting group in delimiters:
+grp \-c 1 \-f '[%s]' abc  # \-> '[a][b][c]'
+.fi
+.RE
+

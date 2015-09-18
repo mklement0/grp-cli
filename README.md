@@ -23,7 +23,7 @@
 `grp` is a Unix CLI that facilitates breaking text into ***gr***ou***p***s of characters with a variety of options
 and also offers formatting numbers with digit grouping (thousands separators) based on the active locale.
 
-See the examples below and the [Usage](#usage) chapter for details.
+See the examples below, concise [usage information](#usage) further below, or read the [manual](doc/grp.md).
 
 # Examples
 
@@ -89,94 +89,31 @@ With [Node.js](http://nodejs.org/) or [io.js](https://iojs.org/) installed, inst
 
 # Usage
 
+Find concise usage information below; for complete documentation, read the [manual online](doc/grp.md) or, 
+once installed, run `man grp` (`grp --man` if installed manually).
+
 <!-- DO NOT EDIT THE FENCED CODE BLOCK and RETAIN THIS COMMENT: The fenced code block below is updated by `make update-readme/release` with CLI usage information. -->
 
 ```nohighlight
 $ grp --help
 
-SYNOPSIS
-  grp [-l | -r] [-c count] [-s sep | -f fmt] [-t term] [txt ...]
-  grp -n [-t term] [num ...]
 
-DESCRIPTION
-  grp facilitates breaking input into *gr*ou*p*s:
+Format numbers with digit grouping:
 
-  First synopsis form:
-    Breaks text into groups of specifiable length joined with a 
-    specifiable separator or formatted with a printf-style format string.
-  
-  Second synopsis form:
-    Prints numbers with digit grouping (thousands separators), as defined by
-    the current locale.
+    grp -n [-t <term>] [<num>...]
 
-  Input is taken either from operands or, in their absence, line by line from
-  stdin. Each operand / input line is processed separately.
+Break text into groups of characters:
 
-OPTIONS
+    grp [-l | -r] [-c <count>] [-s <sep> | -f <fmt>] [-t <term>] [<txt>...]
 
-  -l, -r (default: -r)
-    Determines if grouping should start from the left (-l) or right (-r) of
-    the input.
+Options:
 
-  -c count
-  -c count1,count2,...
-  -c count1,count2,...[+]
-    The count of characters to put into each group.
-    - If only a single count is specified:
-      Breaks the input into fixed groups of the specified size until the input
-      runs out; starting either from the left (start) or right (end), as
-      controlled with -l or -r.
-    - With a list of counts:
-      The order in which the counts are applied is implied by -l or -r; for 
-      instance, since grouping starts from the right (end) by default, the
-      *last* count in the list is by default applied first to the end of the
-      input.
-      - If the list ends in '+':
-        The list of counts is applied *cyclically*; that is, once all counts
-        have been applied, the process starts over with the remaining input.
-      - Otherwise:
-        Whatever is left of the input is put into a final group.
-
-  -s sep (default: a space)
-    The separator character or string to place between resulting groups.
-
-  -f fmt
-    The printf-style format string to apply to the resulting groups, as an 
-    alternative to specifying a fixed separator.
-    Note that if there are more groups than arguments in the format string,
-    the format string is applied cyclically.
-
-  -t term (default: a newline)
-    The terminator char. or string to append to each group on output;
-    specify -t '' to directly concatenate multiple results, if applicable,
-    and to not terminate the overall input with a newline.
-
-  -n
-    Treats each input argument as a number to format with digit grouping
-    (thousands separators), as defined by the current locale.
-    Input can be decimal integers or fractions, numbers in decimal
-    scientific notation, or hexadecimal integers.
-    Output is always decimal, with the number of input decimal places
-    preserved, and the locale's digit grouping and decimal mark applied, if
-    applicable,
-
-    Note:
-      - Environment variables LC_NUMERIC and, indirectly, LANG or LC_ALL
-        control the active locale with respect to number formatting. Not all
-        locales define digit grouping, notably not the "C" and "POSIX"
-        locales. However, even the definition of real-world locales such as
-        "de_DE.UTF-8" (Germany) is inconsistent across platforms, and uses
-        digit grouping on some (e.g., Linux), but not others (e.g., OSX).
-      - Since round-trip number conversion is involved, rounding errors can be
-        introduced. To be safe, limit numbers to 15 significant digits.
-
-EXAMPLES
-  grp 1000000 # -> '1 000 000'
-  grp -n 1000000.2 # -> '1,000,000.2' in locale 'en_US.UTF-8'
-    # Format a US telephone number:
-  grp -f '(%s) %s-%s' -c 3,3,4 '6085277865' # -> '(608) 527-7865'
-    # Enclose each group in delimiters:
-  grp -c 1 -f '[%s]' abc  # -> '[a][b][c]'
+    -n          apply locale-aware digit grouping to input numbers
+    -t <term>   terminator to append to each argument's result; default: \n
+    -l, -r      start grouping from left / right (default)
+    -c <count>  count of chars. per group - may be comma-separated list
+    -s <sep>    either: separator to place between groups; default: a space
+    -f <fmt>    or: printf-style format string to apply to groups
 ```
 
 <!-- DO NOT EDIT THE NEXT CHAPTER and RETAIN THIS COMMENT: The next chapter is updated by `make update-readme/release` with the contents of 'LICENSE.md'. ALSO, LEAVE AT LEAST 1 BLANK LINE AFTER THIS COMMENT. -->
@@ -197,6 +134,7 @@ This project gratefully depends on the following open-source components, accordi
 
 * [doctoc (D)](https://github.com/thlorenz/doctoc)
 * [json (D)](https://github.com/trentm/json)
+* [marked-man (D)](https://github.com/kapouer/marked-man#readme)
 * [replace (D)](https://github.com/harthur/replace)
 * [semver (D)](https://github.com/npm/node-semver#readme)
 * [tap (D)](https://github.com/isaacs/node-tap)
@@ -209,6 +147,9 @@ This project gratefully depends on the following open-source components, accordi
 Versioning complies with [semantic versioning (semver)](http://semver.org/).
 
 <!-- NOTE: An entry template for a new version is automatically added each time `make version` is called. Fill in changes afterwards. -->
+
+* **[v0.1.3](https://github.com/mklement0/grp-cli/compare/v0.1.2...v0.1.3)** (2015-09-17):
+  * [doc] `grp` now comes with a man page (invoke with `grp --man` in case of manual installation); `grp -h` now just prints concise usage info.
 
 * **[v0.1.2](https://github.com/mklement0/grp-cli/compare/v0.1.1...v0.1.2)** (2015-09-15):
   * [dev] Makefile improvements; various other behind-the-scenes tweaks.

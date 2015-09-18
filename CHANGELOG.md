@@ -4,6 +4,9 @@ Versioning complies with [semantic versioning (semver)](http://semver.org/).
 
 <!-- NOTE: An entry template for a new version is automatically added each time `make version` is called. Fill in changes afterwards. -->
 
+* **[v0.1.3](https://github.com/mklement0/grp-cli/compare/v0.1.2...v0.1.3)** (2015-09-17):
+  * [doc] `grp` now comes with a man page (invoke with `grp --man` in case of manual installation); `grp -h` now just prints concise usage info.
+
 * **[v0.1.2](https://github.com/mklement0/grp-cli/compare/v0.1.1...v0.1.2)** (2015-09-15):
   * [dev] Makefile improvements; various other behind-the-scenes tweaks.
 
