@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+PATH=${PWD%%/test*}/bin:$PATH
+
+# Helper function for error reporting.
+die() { (( $# > 0 )) && echo "$*" >&2; exit 1; }
+
+res=$(LC_ALL=en_US.UTF-8 grp -n 1234567 1001.23 5)
+[[ $res == $'1,234,567\n1,001.23\n5' ]] || die "-n: unexpected thousands separator en_US locale"
+
+res=$(LC_ALL=en_US.UTF-8 grp -t @ -n 1234567 1001.23 5)
+[[ $res == $'1,234,567@1,001.23@5@' ]] || die "-n: unexpected thousands separator and/or terminator en_US locale and terminator"
+
+res=$(LC_ALL=lt_LT.UTF-8 grp -n '1234567')
+[[ $res == '1 234 567' ]] || die "-n: unexpected thousands separator with foreign locale"
+
+res=$(grp -n "'not a number'" 2>/dev/null) && die "-n: non-number input unexpectedly succeeded" 
+
+res=$(LC_ALL=en_US.UTF-8 grp -n 1000 5 "'not a number'" 2>/dev/null) && die "-n: non-number input unexpectedly succeeded" 
+[[ $res == $'1,000\n5' ]] || die "-n: valid numbers preceding the first invalid one not formatted."
+
+exit 0
+

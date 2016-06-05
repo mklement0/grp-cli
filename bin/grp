@@ -4,7 +4,7 @@
 
 kTHIS_NAME=${BASH_SOURCE##*/}
 kTHIS_HOMEPAGE='https://github.com/mklement0/grp-cli'
-kTHIS_VERSION='v0.1.3' # NOTE: This assignment is automatically updated by `make version VER=<newVer>` - DO keep the 'v' prefix.
+kTHIS_VERSION='v0.1.4' # NOTE: This assignment is automatically updated by `make version VER=<newVer>` - DO keep the 'v' prefix.
 
 unset CDPATH  # To prevent unexpected `cd` behavior.
 
@@ -100,12 +100,12 @@ esac
 # --- BEGIN: functions
 
 # SYNOPSIS
-#   groupDigits [-t term] [num ...]
+#   groupDigits [-t terminator] [num ...]
 # DESCRIPTION
 #   Formats the specified number(s) according to the rules of the
 #   current locale in terms of digit grouping (thousands separators).
 #   Note that input numbers
-#     - must not contain not be digit-grouped themselves,
+#     - must not already be digit-grouped themselves,
 #     - must use the *current* locale's decimal mark.
 #   Numbers can be integers or floats.
 #   Processing stops at the first number that can't be formatted, and a
@@ -142,9 +142,12 @@ groupDigits() {
   shift $((OPTIND - 1)) # Skip the already-processed arguments (options).
   decimalMark=$(printf "%.1f" 0); decimalMark=${decimalMark:1:1}
   while read -r num; do
+    # Rule out obvious non-numbers; some will still slip through, however.
+    # We do want to rule out pathological cases such as "'hi'", which, strangely, DO produce printf output without an error.
+    [[ $(tr -dC "0-9${decimalMark}eE+- " <<<"$num") == "$num" ]] || { echo "Not a valid input number: $num" >&2; return 1; } 
     fractPart=${num##*${decimalMark}}; [[ "$num" == "$fractPart" ]] && fractPart=''
     printf "%'.${#fractPart}f${outTerminator}" "$num" || return
-  done < <( (( $# )) && printf '%s\n' "$@" || cat ) # !! Sadly, with interactive stdin input, the first ^C only displays an error, and it takes a second one to actually terminate the command.
+  done < <( (( $# )) && printf '%s\n' "$@" || cat ) # !! Sadly, with interactive stdin input, the first ^C keypress only displays an error, and it takes a second one to actually terminate the command.
 }
 
 
@@ -347,14 +350,13 @@ fi
 # pv fromLeft counts groupSep formatString outTerminator formatAsNumber
 
 if (( formatAsNumber )); then
-  groupDigits "$@" || die
+  groupDigits -t "$outTerminator" "$@" || die
 else
   args=()
   (( fromLeft )) && args+=( -l ) || args+=( -r )
   [[ -n $formatString ]] && args+=( -f "$formatString" ) || args+=( -s "$groupSep" )
   args+=( -c "$counts" )
   args+=( -t "$outTerminator" )
-  # pv args # ??
   grp "${args[@]}" -- "$@" || die
 fi
 
